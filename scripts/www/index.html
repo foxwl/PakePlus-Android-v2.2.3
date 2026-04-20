@@ -1,11 +1,164 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>私人日记</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif;font-size:14px;}
+body{background:#f5f5f5;padding:8px;}
+.box{background:#fff;border-radius:8px;margin:0;padding:10px;}
+h3{font-size:15px;margin-bottom:6px;}
+input,textarea{width:100%;margin:0 0 6px;padding:6px 8px;border:1px solid #ddd;border-radius:4px;}
+button{border:none;border-radius:4px;background:#222;color:#fff;padding:6px;}
+.tag-bar{margin:6px 0;}
+.tagBtn{background:#eee;color:#222;padding:3px 6px;margin:0 3px 3px 0;font-size:12px;display:inline-block;}
+.note-item{padding:6px 0;border-bottom:1px solid #eee;line-height:1.4;white-space:pre-wrap;}
+.note-item:last-child{border-bottom:none;}
+.editBtn,.delBtn{padding:2px 6px;font-size:11px;background:#ddd;margin-right:4px;margin-top:4px;}
+#notesArea{line-height:1.4;}
+#existTagsArea{margin:6px 0;display:none;}
+</style>
+</head>
+<body>
+
+<div class="box">
+<h3>🔒 私人日记</h3>
+<input id="tagInput" placeholder="标签空格分隔">
+<button onclick="toggleExistTags()">已有标签</button>
+<div id="existTagsArea"></div>
+
+<textarea id="noteInput" placeholder="写下内容..." rows="3"></textarea>
+<button onclick="saveNote()">保存日记</button>
+<input type="hidden" id="editIndex" value="-1">
+
+<div class="tag-bar" id="tagButtons"></div>
+<div id="notesArea"></div>
+</div>
+
+<script>
+// 获取所有不重复标签
+function getAllTags() {
+  let list = JSON.parse(localStorage.getItem("noteList") || "[]");
+  let tagSet = new Set();
+  list.forEach(item => {
+    if (item.tags) item.tags.forEach(t => tagSet.add(t));
+  });
+  return Array.from(tagSet);
+}
+
+// 渲染筛选标签按钮
+function renderTagButtons() {
+  let tags = getAllTags();
+  let bar = document.getElementById("tagButtons");
+  let html = `<button class="tagBtn" onclick="showAll()">全部</button>`;
+  tags.forEach(t => {
+    html += `<button class="tagBtn" onclick="filterTag('${t}')">${t}</button>`;
+  });
+  bar.innerHTML = html;
+}
+
+// 显示已有标签区（用于快速选择）
+function toggleExistTags() {
+  let area = document.getElementById("existTagsArea");
+  if (area.style.display === "block") {
+    area.style.display = "none";
+    return;
+  }
+  let tags = getAllTags();
+  let h = "";
+  tags.forEach(t => {
+    h += `<button class="tagBtn" onclick="pickTag('${t}')">${t}</button>`;
+  });
+  area.innerHTML = h || "暂无标签";
+  area.style.display = "block";
+}
+
+// 点击选择标签，自动填入输入框
+function pickTag(t) {
+  let input = document.getElementById("tagInput");
+  let val = input.value.trim();
+  let arr = val ? val.split(/\s+/) : [];
+  if (!arr.includes(t)) arr.push(t);
+  input.value = arr.join(' ');
+}
+
+// 显示所有日记
+function showAll() {
+  let list = JSON.parse(localStorage.getItem("noteList") || "[]");
+  let html = '';
+  list.forEach((item, idx) => {
+    html += `<div class="note-item">${item.text}`
+    html += `<div><button class="editBtn" onclick="editNote(${idx})">修改</button>`
+    html += `<button class="delBtn" onclick="delNote(${idx})">删除</button></div></div>`
+  });
+  document.getElementById("notesArea").innerHTML = html || "暂无日记";
+}
+
+// 按标签筛选
+function filterTag(key) {
+  let list = JSON.parse(localStorage.getItem("noteList") || "[]");
+  let filtered = list.filter(item => item.tags && item.tags.includes(key));
+  let html = '';
+  filtered.forEach((item, idx) => {
+    html += `<div class="note-item">${item.text}`
+    html += `<div><button class="editBtn" onclick="editNote(${idx})">修改</button>`
+    html += `<button class="delBtn" onclick="delNote(${idx})">删除</button></div></div>`
+  });
+  document.getElementById("notesArea").innerHTML = html || "无匹配日记";
+}
+
+// 保存 / 修改日记
+function saveNote() {
+  let list = JSON.parse(localStorage.getItem("noteList") || "[]");
+  let tagText = document.getElementById("tagInput").value.trim();
+  let content = document.getElementById("noteInput").value.trim();
+  let editIndex = document.getElementById("editIndex").value;
+
+  if (!content) return;
+  let tags = tagText ? tagText.split(/\s+/).filter(t => t) : [];
+  let now = new Date().toLocaleString();
+  let displayTags = tags.length ? tags.join(' ') : '无标签';
+  let itemText = `[${now}] 【${displayTags}】\n${content}\n`;
+  let newItem = { tags, time: now, text: itemText };
+
+  if (editIndex >= 0) {
+    list[editIndex] = newItem;
+    document.getElementById("editIndex").value = -1;
+  } else {
+    list.unshift(newItem);
+  }
+
+  localStorage.setItem("noteList", JSON.stringify(list));
+  showAll();
+  renderTagButtons();
+  document.getElementById("tagInput").value = "";
+  document.getElementById("noteInput").value = "";
+}
+
+// 编辑日记
+function editNote(idx) {
+  let list = JSON.parse(localStorage.getItem("noteList") || "[]");
+  let item = list[idx];
+  document.getElementById("tagInput").value = item.tags.join(' ');
+  document.getElementById("noteInput").value = item.text.replace(/\[.*\] 【.*】\n/, '').trim();
+  document.getElementById("editIndex").value = idx;
+}
+
+// 删除日记
+function delNote(idx) {
+  if (!confirm("确定删除这条日记？")) return;
+  let list = JSON.parse(localStorage.getItem("noteList") || "[]");
+  list.splice(idx, 1);
+  localStorage.setItem("noteList", JSON.stringify(list));
+  showAll();
+  renderTagButtons();
+}
+
+// 初始化
+window.onload = function () {
+  showAll();
+  renderTagButtons();
+}
+</script>
+</body>
 </html>
